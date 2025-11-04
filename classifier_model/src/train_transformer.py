@@ -4,41 +4,70 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trai
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 import os
 
-# Load data
-data_path = os.path.join(os.path.dirname(__file__), "data", "cleaned_train.parquet")
-df = pd.read_parquet(data_path)
+# ✅ Load data
+train_path = os.path.join(os.path.dirname(__file__), "data", "combined_dataset_fixed.parquet")
+test_path  = os.path.join(os.path.dirname(__file__), "data", "cleaned_test.parquet")
 
-# Convert to Hugging Face Dataset and split
-hf_dataset = Dataset.from_pandas(df)
-hf_dataset = hf_dataset.train_test_split(test_size=0.2, seed=42)
-train_ds = hf_dataset['train']
-test_ds = hf_dataset['test']
+train_df = pd.read_parquet(train_path)
+test_df  = pd.read_parquet(test_path)
 
-# Keep only necessary columns
-train_ds = train_ds.remove_columns([col for col in train_ds.column_names if col not in ['content', 'bias']])
-test_ds  = test_ds.remove_columns([col for col in test_ds.column_names if col not in ['content', 'bias']])
+# ✅ Map all label values to numeric (0, 1, 2)
+label_map = {
+    "left": 0,
+    "right": 1,
+    "center": 2,
+    0: 0,
+    1: 1,
+    2: 2
+}
 
-# Rename label column for HF Trainer
+if "label" in train_df.columns:
+    train_df["bias"] = train_df["label"].map(label_map)
+elif "bias" in train_df.columns:
+    train_df["bias"] = train_df["bias"].map(label_map)
+
+if "bias" in test_df.columns:
+    test_df["bias"] = test_df["bias"].map(label_map)
+
+# ✅ Drop rows with missing or unmapped labels
+train_df = train_df.dropna(subset=["bias"])
+test_df = test_df.dropna(subset=["bias"])
+
+# ✅ Ensure bias is int
+train_df["bias"] = train_df["bias"].astype(int)
+test_df["bias"] = test_df["bias"].astype(int)
+
+# ✅ Ensure we have the right text column (from transcript or content)
+if "content" not in train_df.columns and "transcript" in train_df.columns:
+    train_df["content"] = train_df["transcript"]
+
+if "content" not in test_df.columns and "transcript" in test_df.columns:
+    test_df["content"] = test_df["transcript"]
+
+# ✅ Convert to Hugging Face Datasets
+train_ds = Dataset.from_pandas(train_df[["content", "bias"]])
+test_ds  = Dataset.from_pandas(test_df[["content", "bias"]])
+
+# ✅ Rename for Trainer
 train_ds = train_ds.rename_column("bias", "labels")
 test_ds = test_ds.rename_column("bias", "labels")
 
-# Model & Tokenizer
+# ✅ Model & Tokenizer
 model_name = "distilbert-base-uncased"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=3)
 
-# Tokenization
+# ✅ Tokenization
 def tokenize(batch):
     return tokenizer(batch["content"], padding="max_length", truncation=True, max_length=256)
 
 train_ds = train_ds.map(tokenize, batched=True)
 test_ds = test_ds.map(tokenize, batched=True)
 
-# Set format for PyTorch
 train_ds.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
 test_ds.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
 
-# Metrics
+# ✅ Metrics
 def compute_metrics(pred):
     labels = pred.label_ids
     preds = pred.predictions.argmax(-1)
@@ -46,12 +75,12 @@ def compute_metrics(pred):
     acc = accuracy_score(labels, preds)
     return {"accuracy": acc, "f1": f1, "precision": precision, "recall": recall}
 
-# ✅ Training arguments (fixed parameter name)
+# ✅ Training arguments
 training_args = TrainingArguments(
     output_dir=os.path.join(os.path.dirname(__file__), "../models/saved_model"),
     do_eval=True,
     do_train=True,
-    eval_strategy="steps",         # ✅ Changed from evaluation_strategy
+    eval_strategy="steps",
     eval_steps=500,
     save_steps=500,
     learning_rate=2e-5,
@@ -61,11 +90,10 @@ training_args = TrainingArguments(
     weight_decay=0.01,
     logging_dir=os.path.join(os.path.dirname(__file__), "../models/logs"),
     logging_steps=100,
-    load_best_model_at_end=True,  # ✅ Optional: load best checkpoint at end
-    metric_for_best_model="f1",   # ✅ Optional: use F1 for best model selection
+    load_best_model_at_end=True,
+    metric_for_best_model="f1",
 )
 
-# Trainer
 trainer = Trainer(
     model=model,
     args=training_args,
@@ -75,6 +103,5 @@ trainer = Trainer(
     compute_metrics=compute_metrics
 )
 
-# Train & evaluate
 trainer.train()
 trainer.evaluate()
