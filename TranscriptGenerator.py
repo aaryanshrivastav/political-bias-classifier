@@ -1,6 +1,5 @@
 import os
 import sys
-
 import whisper
 from langdetect import detect
 from pytubefix import YouTube

@@ -1,7 +1,8 @@
-from transformers import pipeline
+from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 
-# Path to your trained model
-export_dir = r"C:\Projects\political-bias-classifier-1\classifier_model\models\final_models_2"
+# Load tokenizer & model directly from Hugging Face Hub
+tokenizer = AutoTokenizer.from_pretrained("Arstacity/political-bias-classifier")
+model = AutoModelForSequenceClassification.from_pretrained("Arstacity/political-bias-classifier")
 
 # Label mapping
 label_map = {
@@ -14,7 +15,8 @@ def classify_long_text(text, chunk_size=512, overlap=50):
     # Initialize classifier
     classifier = pipeline(
         "text-classification",
-        model=export_dir,
+        model=model,
+        tokenizer=tokenizer,
         truncation=True,
         max_length=chunk_size
     )
@@ -41,15 +43,13 @@ def classify_long_text(text, chunk_size=512, overlap=50):
     readable_label = label_map.get(final_label, final_label)
 
     return {
+        "final_label": readable_label,
         "label_scores": {label_map.get(k, k): v for k, v in label_scores.items()}
     }
 
-# Example:
-transcript = """
-# tactiq.io free youtube transcript
-# The Political Spectrum Explained In 4 Minutes
-# https://www.youtube.com/watch/JlQ5fGECmsA
 
+# Example usage
+transcript = """
 00:00:00.530 [Music]
 00:00:10.460 in the modern political world the terms
 00:00:13.440 left-wing and right-wing can often be
