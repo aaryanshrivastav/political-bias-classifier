@@ -1,6 +1,0 @@
-venv/
-src/data/
-models/saved_model
-models/final_models
-models/final_models/*.safetensors
-models/final_models_2/*.safetensors

@@ -1,0 +1,30 @@
+# Core dependencies
+python-dotenv
+langdetect
+tqdm
+pytubefix
+
+# Whisper transcription
+openai-whisper
+yt_dlp
+torch
+numpy
+
+# Hugging Face Transformers + Datasets
+transformers
+datasets
+accelerate
+scikit-learn
+pandas
+
+# Google APIs
+google-generativeai
+google-api-python-client
+requests
+
+# YouTube Transcript
+youtube-transcript-api
+
+# Data handling
+pandas
+pyarrow

@@ -1,38 +1,44 @@
 import os
-import requests
 from dotenv import load_dotenv
+import google.generativeai as genai
 
-load_dotenv()
 
-gemini_api_key = os.getenv("GEMINI_API_KEY")
-if not gemini_api_key:
-    raise ValueError("GEMINI_API_KEY is not set. Please ensure it is defined in your .env file.")
+def load_gemini_api_key() -> str:
+    """
+    Load the Gemini API key from the .env file.
+    Raises an error if not found.
+    """
+    load_dotenv()
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_api_key:
+        raise ValueError("GEMINI_API_KEY is not set. Please ensure it is defined in your .env file.")
+    return gemini_api_key
 
-url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-headers = {
-    "Authorization": f"Bearer {gemini_api_key}",
-    "Content-Type": "application/json",
-}
 
-user_text = input("Enter the text you want to translate to English: ")
+def translate_to_english(text: str, model_name: str = "gemini-2.0-flash") -> str:
+    """
+    Translate the given text to English using the Gemini API SDK.
+    """
+    api_key = load_gemini_api_key()
+    genai.configure(api_key=api_key)
 
-payload = {
-    "model": "gemini-2.0-flash",
-    "messages": [
-        {
-            "role": "user",
-            "content": f"Translate the following text to English: '{user_text}'"
-        }
-    ],
-    "temperature": 0.7,
-}
-resp = requests.post(url, headers=headers, json=payload)
-resp.raise_for_status()
-data = resp.json()
-try:
-    print("\n Translated Text:")
-    print(data["choices"][0]["message"]["content"])
-except Exception:
-    import json as _json
-    print("\n Full Response (for debugging):")
-    print(_json.dumps(data, indent=2))
+    try:
+        model = genai.GenerativeModel(model_name)
+        prompt = f"""
+            Translate the following text to neutral and accurate English. 
+            Preserve factual content and political tone exactly as in the original language, without adding bias or interpretation.
+
+            Text:
+            {text}
+            """
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        print(f"Translation failed: {e}")
+        return text  
+
+if __name__ == "__main__":
+    user_text = input("Enter the text you want to translate to English: ").strip()
+    translated = translate_to_english(user_text)
+    print("\nTranslated Text:")
+    print(translated)
